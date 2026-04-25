@@ -101,6 +101,184 @@ function sameDateLastMonth(d) {
 function isSameMonthYear(d, y, mIndex) {
   return d && d.getFullYear() === y && d.getMonth() === mIndex;
 }
+function downloadCSV(filename, rows) {
+  if (!rows.length) {
+    showToast('No data available for export.');
+    return;
+  }
+
+  const csv = rows.map(row =>
+    row.map(cell => {
+      const value = cell === null || cell === undefined ? '' : String(cell);
+      return `"${value.replace(/"/g, '""')}"`;
+    }).join(',')
+  ).join('\n');
+
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+
+  URL.revokeObjectURL(url);
+}
+function exportItemsCSV() {
+  const d = getSale();
+
+  const itemMap = {};
+  d.forEach(r => {
+    const item = r.description_of_goods || 'Unknown';
+    itemMap[item] = itemMap[item] || {
+      item,
+      brand: r.brand_name,
+      qty: 0,
+      sale: 0,
+      profit: 0
+    };
+
+    itemMap[item].qty += r.qty;
+    itemMap[item].sale += r.amount;
+    itemMap[item].profit += r.profit;
+  });
+
+  const rows = [
+    ['Item Name', 'Brand', 'Qty', 'Sale Amount', 'Profit', 'Margin %']
+  ];
+
+  Object.values(itemMap)
+    .sort((a, b) => b.sale - a.sale)
+    .forEach(x => {
+      const margin = x.sale ? (x.profit / x.sale * 100) : 0;
+      rows.push([
+        x.item,
+        x.brand,
+        x.qty,
+        x.sale,
+        x.profit,
+        margin.toFixed(2)
+      ]);
+    });
+
+  downloadCSV('items_export.csv', rows);
+}
+function exportCustomersCSV() {
+  const d = getSale();
+
+  const partyMap = {};
+  d.forEach(r => {
+    const party = r.party_name || 'Unknown';
+    partyMap[party] = partyMap[party] || {
+      party,
+      qty: 0,
+      sale: 0,
+      profit: 0
+    };
+
+    partyMap[party].qty += r.qty;
+    partyMap[party].sale += r.amount;
+    partyMap[party].profit += r.profit;
+  });
+
+  const rows = [
+    ['Party Name', 'Qty', 'Sale Amount', 'Profit', 'Share %']
+  ];
+
+  const totalSale = Object.values(partyMap).reduce((s, x) => s + x.sale, 0);
+
+  Object.values(partyMap)
+    .sort((a, b) => b.sale - a.sale)
+    .forEach(x => {
+      const share = totalSale ? (x.sale / totalSale * 100) : 0;
+      rows.push([
+        x.party,
+        x.qty,
+        x.sale,
+        x.profit,
+        share.toFixed(2)
+      ]);
+    });
+
+  downloadCSV('parties_export.csv', rows);
+}
+function exportBrandsCSV() {
+  const d = getSale();
+  const p = getPurch();
+  const st = getStock();
+
+  const brandMap = {};
+
+  d.forEach(r => {
+    const brand = r.brand_name || 'Unknown';
+    brandMap[brand] = brandMap[brand] || {
+      brand,
+      sale: 0,
+      profit: 0,
+      qty: 0,
+      purchase: 0,
+      stockValue: 0
+    };
+
+    brandMap[brand].sale += r.amount;
+    brandMap[brand].profit += r.profit;
+    brandMap[brand].qty += r.qty;
+  });
+
+  p.forEach(r => {
+    const brand = r.brand_name || 'Unknown';
+    brandMap[brand] = brandMap[brand] || {
+      brand,
+      sale: 0,
+      profit: 0,
+      qty: 0,
+      purchase: 0,
+      stockValue: 0
+    };
+
+    brandMap[brand].purchase += r.purchase_value;
+  });
+
+  st.forEach(r => {
+    const brand = r.brand_name || 'Unknown';
+    brandMap[brand] = brandMap[brand] || {
+      brand,
+      sale: 0,
+      profit: 0,
+      qty: 0,
+      purchase: 0,
+      stockValue: 0
+    };
+
+    brandMap[brand].stockValue += r.closing_value;
+  });
+
+  const totalSale = Object.values(brandMap).reduce((s, x) => s + x.sale, 0);
+
+  const rows = [
+    ['Brand', 'Sale Amount', 'Purchase Amount', 'Profit', 'Margin %', 'Qty', 'Stock Value', 'Share %']
+  ];
+
+  Object.values(brandMap)
+    .sort((a, b) => b.sale - a.sale)
+    .forEach(x => {
+      const margin = x.sale ? (x.profit / x.sale * 100) : 0;
+      const share = totalSale ? (x.sale / totalSale * 100) : 0;
+
+      rows.push([
+        x.brand,
+        x.sale,
+        x.purchase,
+        x.profit,
+        margin.toFixed(2),
+        x.qty,
+        x.stockValue,
+        share.toFixed(2)
+      ]);
+    });
+
+  downloadCSV('brands_export.csv', rows);
+}
 
 /* FIXED:
    currentMTD = current month till latest available date
