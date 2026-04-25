@@ -141,6 +141,9 @@
 
     <!-- BRANDS -->
     <div class="page" id="pg-br">
+      <div class="page-top-actions">
+        <button class="export-btn" onclick="exportBrandsCSV()">Export Brands</button>
+        </div>
       <div class="krow" id="br-kpis"></div>
       <div class="g2">
         <div class="card">
@@ -177,64 +180,93 @@
     </div>
 
     <!-- ITEMS -->
-    <div class="page" id="pg-it">
-      <div class="krow" id="it-kpis"></div>
-      <div class="card">
-        <div class="ch">
-          <div><b class="ct" id="it-ct">Top 10 Items by Sale</b><div class="cs">Revenue contribution</div></div>
-          <div class="tabs2">
-            <button class="tab2 on" data-g="it" data-m="top">Top Sale</button>
-            <button class="tab2" data-g="it" data-m="bot">Bottom Sale</button>
-            <button class="tab2" data-g="it" data-m="profit">Top Profit</button>
-          </div>
-        </div>
-        <div class="cw h360"><canvas id="c-items"></canvas></div>
+<div class="page" id="pg-it">
+
+  <div class="page-top-actions">
+    <button class="export-btn" onclick="exportItemsCSV()">Export Items</button>
+  </div>
+
+  <div class="krow" id="it-kpis"></div>
+
+  <div class="card">
+    <div class="ch">
+      <div>
+        <b class="ct" id="it-ct">Top 10 Items by Sale</b>
+        <div class="cs">Revenue contribution</div>
       </div>
-      <div class="card mt13">
-        <div class="ch"><div><b class="ct">Item Performance Table</b><div class="cs">FIFO basis · Sale − Cost = Profit</div></div></div>
-        <div class="tw">
-          <table id="tbl-items">
-            <thead><tr>
-              <th>#</th><th>Item</th><th>Brand</th><th>Qty</th>
-              <th>Sale ₹</th><th>Profit ₹</th><th>Margin %</th>
-            </tr></thead>
-            <tbody></tbody>
-          </table>
-        </div>
+      <div class="tabs2">
+        <button class="tab2 on" data-g="it" data-m="top">Top Sale</button>
+        <button class="tab2" data-g="it" data-m="bot">Bottom Sale</button>
+        <button class="tab2" data-g="it" data-m="profit">Top Profit</button>
       </div>
     </div>
+    <div class="cw h360"><canvas id="c-items"></canvas></div>
+  </div>
 
+  <div class="card mt13">
+    <div class="ch">
+      <div>
+        <b class="ct">Item Performance Table</b>
+        <div class="cs">FIFO basis · Sale − Cost = Profit</div>
+      </div>
+    </div>
+    <div class="tw">
+      <table id="tbl-items">
+        <thead>
+          <tr>
+            <th>#</th><th>Item</th><th>Brand</th><th>Qty</th>
+            <th>Sale ₹</th><th>Profit ₹</th><th>Margin %</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
     <!-- CUSTOMERS -->
-    <div class="page" id="pg-cu">
-      <div class="krow" id="cu-kpis"></div>
-      <div class="g2">
-        <div class="card">
-          <div class="ch">
-            <div><b class="ct" id="cu-ct">Top 10 Customers</b></div>
-            <div class="tabs2">
-              <button class="tab2 on" data-g="cu" data-m="top">Top 10</button>
-              <button class="tab2" data-g="cu" data-m="bot">Bottom 10</button>
-            </div>
-          </div>
-          <div class="cw h300"><canvas id="c-cust"></canvas></div>
+<div class="page" id="pg-cu">
+
+  <div class="page-top-actions">
+    <button class="export-btn" onclick="exportCustomersCSV()">Export Parties</button>
+  </div>
+
+  <div class="krow" id="cu-kpis"></div>
+
+  <div class="g2">
+    <div class="card">
+      <div class="ch">
+        <div>
+          <b class="ct" id="cu-ct">Top 10 Customers</b>
         </div>
-        <div class="card">
-          <div class="ch"><div><b class="ct">Revenue Share — Top 5</b></div></div>
-          <div class="cw h240"><canvas id="c-cpie"></canvas></div>
-        </div>
-      </div>
-      <div class="card mt13">
-        <div class="tw">
-          <table id="tbl-cust">
-            <thead><tr>
-              <th>#</th><th>Party</th><th>Sale ₹</th><th>Profit ₹</th><th>Qty</th><th>Contrib %</th>
-            </tr></thead>
-            <tbody></tbody>
-          </table>
+        <div class="tabs2">
+          <button class="tab2 on" data-g="cu" data-m="top">Top 10</button>
+          <button class="tab2" data-g="cu" data-m="bot">Bottom 10</button>
         </div>
       </div>
+      <div class="cw h300"><canvas id="c-cust"></canvas></div>
     </div>
 
+    <div class="card">
+      <div class="ch">
+        <div><b class="ct">Revenue Share — Top 5</b></div>
+      </div>
+      <div class="cw h240"><canvas id="c-cpie"></canvas></div>
+    </div>
+  </div>
+
+  <div class="card mt13">
+    <div class="tw">
+      <table id="tbl-cust">
+        <thead>
+          <tr>
+            <th>#</th><th>Party</th><th>Sale ₹</th><th>Profit ₹</th><th>Qty</th><th>Contrib %</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
     <!-- STOCK -->
     <div class="page" id="pg-st">
       <div class="krow" id="st-kpis"></div>
