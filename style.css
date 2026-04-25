@@ -955,3 +955,49 @@ tr:hover td { background: rgba(255,255,255,.02); }
     right: 0;
   }
 }
+.page-top-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  margin-bottom: 12px;
+  gap: 8px;
+}
+
+.export-btn {
+  padding: 8px 16px;
+  border-radius: 9px;
+  border: 1px solid rgba(34,197,94,.45);
+  background: rgba(34,197,94,.14);
+  color: #86efac;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--sans);
+  cursor: pointer;
+  transition: all .2s ease;
+  white-space: nowrap;
+}
+
+.export-btn:hover {
+  background: #22c55e;
+  color: #06130a;
+  border-color: #22c55e;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 22px rgba(34,197,94,.25);
+}
+
+.export-btn:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+@media(max-width:640px) {
+  .page-top-actions {
+    justify-content: flex-start;
+    margin-bottom: 10px;
+  }
+
+  .export-btn {
+    padding: 7px 13px;
+    font-size: 10.5px;
+  }
+}
