@@ -1,50 +1,40 @@
 /* ═══════════════════════════════════════════════════════════════
-   ABHI ASSOCIATE · BI DASHBOARD v7
-   script.js — Full application logic
+   ABHI ASSOCIATE · BI DASHBOARD v8
+   Financial Year Version
 ═══════════════════════════════════════════════════════════════ */
 
-/* ──────────────────────────────────────────────────────────────
-   CONFIG
-────────────────────────────────────────────────────────────── */
 const SB_URL = 'https://yaqxtoenztxluwzqfjhe.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlhcXh0b2VuenR4bHV3enFmamhlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzNTU3ODEsImV4cCI6MjA5MTkzMTc4MX0.3KfOSunO9L1bU6Vpaq9rHpg2mOuEMHhgwYtWr8B4sDc';
 
-/* ──────────────────────────────────────────────────────────────
-   CONSTANTS
-────────────────────────────────────────────────────────────── */
-const MONTHS_S = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const MONTHS_F = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+/* FY Month Order: Apr = 1 ... Mar = 12 */
+const MONTHS_S = ['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar'];
+const MONTHS_F = ['April','May','June','July','August','September','October','November','December','January','February','March'];
+
 const PALETTE  = ['#f5a623','#3b82f6','#10b981','#a855f7','#ef4444','#06b6d4','#f97316','#84cc16','#ec4899','#8b5cf6','#14b8a6','#f43f5e'];
 const YR_COLS  = ['#00d4ff','#22c55e','#f5a623','#a855f7','#ef4444','#f97316'];
 const YEAR_PILL_LIMIT = 4;
 
-/* ──────────────────────────────────────────────────────────────
-   STATE
-────────────────────────────────────────────────────────────── */
 let SB_CLIENT = null;
 
 const D = {
-  sale:        [],
-  purchase:    [],
-  stock:       [],
+  sale: [],
+  purchase: [],
+  stock: [],
   availBrands: [],
-  availYears:  [],
+  availYears: [],
 };
 
 const F = {
   brands: new Set(),
-  years:  new Set(),
+  years: new Set(),
   months: new Set(),
 };
 
-const CH  = {};
-const BC  = {};
+const CH = {};
+const BC = {};
 let itMode = 'top';
 let cuMode = 'top';
 
-/* ──────────────────────────────────────────────────────────────
-   UTILS
-────────────────────────────────────────────────────────────── */
 const $ = id => document.getElementById(id);
 
 function fi(v) {
@@ -54,9 +44,14 @@ function fi(v) {
   if (a >= 1e3) return s + '₹' + (a / 1e3).toFixed(1) + 'K';
   return s + '₹' + Math.round(a).toLocaleString('en-IN');
 }
-function fn(v) { return v >= 1e3 ? (v / 1e3).toFixed(1) + 'K' : Math.round(v || 0); }
-function tr(s, n = 30) { return s && s.length > n ? s.slice(0, n) + '…' : s || '—'; }
-function pct(a, b) { return b ? (a / b * 100).toFixed(1) : '0.0'; }
+
+function fn(v) {
+  return v >= 1e3 ? (v / 1e3).toFixed(1) + 'K' : Math.round(v || 0);
+}
+
+function tr(s, n = 30) {
+  return s && s.length > n ? s.slice(0, n) + '…' : s || '—';
+}
 
 function bc(brand) {
   if (!BC[brand]) BC[brand] = PALETTE[Object.keys(BC).length % PALETTE.length];
@@ -87,20 +82,36 @@ function toDateOnly(v) {
 function sameDateLastMonth(d) {
   const cur = toDateOnly(d);
   if (!cur) return null;
-
   const y = cur.getFullYear();
   const m = cur.getMonth();
   const day = cur.getDate();
-
   const lastMonthLastDate = new Date(y, m, 0).getDate();
-  const safeDay = Math.min(day, lastMonthLastDate);
-
-  return new Date(y, m - 1, safeDay);
+  return new Date(y, m - 1, Math.min(day, lastMonthLastDate));
 }
 
 function isSameMonthYear(d, y, mIndex) {
   return d && d.getFullYear() === y && d.getMonth() === mIndex;
 }
+
+/* FY helper */
+function makeMonthKey(yearNo, monthNo) {
+  return `${String(yearNo)}|${String(monthNo).padStart(2, '0')}`;
+}
+
+function parseMonthKey(key) {
+  const [fy, mo] = key.split('|');
+  return { fy, mo: Number(mo) };
+}
+
+function sortMonthKeys(keys) {
+  return keys.sort((a, b) => {
+    const A = parseMonthKey(a);
+    const B = parseMonthKey(b);
+    if (A.fy !== B.fy) return A.fy.localeCompare(B.fy);
+    return A.mo - B.mo;
+  });
+}
+
 function downloadCSV(filename, rows) {
   if (!rows.length) {
     showToast('No data available for export.');
@@ -116,101 +127,76 @@ function downloadCSV(filename, rows) {
 
   const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
-
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
   a.click();
-
   URL.revokeObjectURL(url);
 }
+
 function exportItemsCSV() {
   const d = getSale();
-
   const itemMap = {};
+
   d.forEach(r => {
     const item = r.description_of_goods || 'Unknown';
-    itemMap[item] = itemMap[item] || {
-      item,
-      brand: r.brand_name,
-      qty: 0,
-      sale: 0,
-      profit: 0
-    };
-
+    itemMap[item] = itemMap[item] || { item, brand: r.brand_name, qty: 0, sale: 0, profit: 0 };
     itemMap[item].qty += r.qty;
     itemMap[item].sale += r.amount;
     itemMap[item].profit += r.profit;
   });
 
-  const rows = [
-    ['Item Name', 'Brand', 'Qty', 'Sale Amount', 'Profit', 'Margin %']
-  ];
+  const rows = [['Item Name', 'Brand', 'Qty', 'Sale Amount', 'Profit', 'Margin %']];
 
-  Object.values(itemMap)
-    .sort((a, b) => b.sale - a.sale)
-    .forEach(x => {
-      const margin = x.sale ? (x.profit / x.sale * 100) : 0;
-      rows.push([
-        x.item,
-        x.brand,
-        x.qty,
-        x.sale,
-        x.profit,
-        margin.toFixed(2)
-      ]);
-    });
+  Object.values(itemMap).sort((a, b) => b.sale - a.sale).forEach(x => {
+    rows.push([
+      x.item,
+      x.brand,
+      x.qty,
+      x.sale,
+      x.profit,
+      x.sale ? (x.profit / x.sale * 100).toFixed(2) : '0.00'
+    ]);
+  });
 
   downloadCSV('items_export.csv', rows);
 }
+
 function exportCustomersCSV() {
   const d = getSale();
-
   const partyMap = {};
+
   d.forEach(r => {
     const party = r.party_name || 'Unknown';
-    partyMap[party] = partyMap[party] || {
-      party,
-      qty: 0,
-      sale: 0,
-      profit: 0
-    };
-
+    partyMap[party] = partyMap[party] || { party, qty: 0, sale: 0, profit: 0 };
     partyMap[party].qty += r.qty;
     partyMap[party].sale += r.amount;
     partyMap[party].profit += r.profit;
   });
 
-  const rows = [
-    ['Party Name', 'Qty', 'Sale Amount', 'Profit', 'Share %']
-  ];
-
   const totalSale = Object.values(partyMap).reduce((s, x) => s + x.sale, 0);
+  const rows = [['Party Name', 'Qty', 'Sale Amount', 'Profit', 'Share %']];
 
-  Object.values(partyMap)
-    .sort((a, b) => b.sale - a.sale)
-    .forEach(x => {
-      const share = totalSale ? (x.sale / totalSale * 100) : 0;
-      rows.push([
-        x.party,
-        x.qty,
-        x.sale,
-        x.profit,
-        share.toFixed(2)
-      ]);
-    });
+  Object.values(partyMap).sort((a, b) => b.sale - a.sale).forEach(x => {
+    rows.push([
+      x.party,
+      x.qty,
+      x.sale,
+      x.profit,
+      totalSale ? (x.sale / totalSale * 100).toFixed(2) : '0.00'
+    ]);
+  });
 
   downloadCSV('parties_export.csv', rows);
 }
+
 function exportBrandsCSV() {
   const d = getSale();
   const p = getPurch();
   const st = getStock();
-
   const brandMap = {};
 
-  d.forEach(r => {
-    const brand = r.brand_name || 'Unknown';
+  function ensureBrand(brand) {
     brandMap[brand] = brandMap[brand] || {
       brand,
       sale: 0,
@@ -219,81 +205,47 @@ function exportBrandsCSV() {
       purchase: 0,
       stockValue: 0
     };
+    return brandMap[brand];
+  }
 
-    brandMap[brand].sale += r.amount;
-    brandMap[brand].profit += r.profit;
-    brandMap[brand].qty += r.qty;
+  d.forEach(r => {
+    const x = ensureBrand(r.brand_name || 'Unknown');
+    x.sale += r.amount;
+    x.profit += r.profit;
+    x.qty += r.qty;
   });
 
   p.forEach(r => {
-    const brand = r.brand_name || 'Unknown';
-    brandMap[brand] = brandMap[brand] || {
-      brand,
-      sale: 0,
-      profit: 0,
-      qty: 0,
-      purchase: 0,
-      stockValue: 0
-    };
-
-    brandMap[brand].purchase += r.purchase_value;
+    const x = ensureBrand(r.brand_name || 'Unknown');
+    x.purchase += r.purchase_value;
   });
 
   st.forEach(r => {
-    const brand = r.brand_name || 'Unknown';
-    brandMap[brand] = brandMap[brand] || {
-      brand,
-      sale: 0,
-      profit: 0,
-      qty: 0,
-      purchase: 0,
-      stockValue: 0
-    };
-
-    brandMap[brand].stockValue += r.closing_value;
+    const x = ensureBrand(r.brand_name || 'Unknown');
+    x.stockValue += r.closing_value;
   });
 
   const totalSale = Object.values(brandMap).reduce((s, x) => s + x.sale, 0);
+  const rows = [['Brand', 'Sale Amount', 'Purchase Amount', 'Profit', 'Margin %', 'Qty', 'Stock Value', 'Share %']];
 
-  const rows = [
-    ['Brand', 'Sale Amount', 'Purchase Amount', 'Profit', 'Margin %', 'Qty', 'Stock Value', 'Share %']
-  ];
-
-  Object.values(brandMap)
-    .sort((a, b) => b.sale - a.sale)
-    .forEach(x => {
-      const margin = x.sale ? (x.profit / x.sale * 100) : 0;
-      const share = totalSale ? (x.sale / totalSale * 100) : 0;
-
-      rows.push([
-        x.brand,
-        x.sale,
-        x.purchase,
-        x.profit,
-        margin.toFixed(2),
-        x.qty,
-        x.stockValue,
-        share.toFixed(2)
-      ]);
-    });
+  Object.values(brandMap).sort((a, b) => b.sale - a.sale).forEach(x => {
+    rows.push([
+      x.brand,
+      x.sale,
+      x.purchase,
+      x.profit,
+      x.sale ? (x.profit / x.sale * 100).toFixed(2) : '0.00',
+      x.qty,
+      x.stockValue,
+      totalSale ? (x.sale / totalSale * 100).toFixed(2) : '0.00'
+    ]);
+  });
 
   downloadCSV('brands_export.csv', rows);
 }
 
-/* FIXED:
-   currentMTD = current month till latest available date
-   lmtdSale   = last month same till-date sale
-   growthPct  = currentMTD vs lmtdSale
-*/
 function calcLMTDMetrics(rows) {
-  if (!rows.length) {
-    return {
-      currentMTD: 0,
-      lmtdSale: 0,
-      growthPct: 0,
-      latestDate: null
-    };
-  }
+  if (!rows.length) return { currentMTD: 0, lmtdSale: 0, growthPct: 0, latestDate: null };
 
   const datedRows = rows
     .filter(r => r.tx_date)
@@ -301,17 +253,9 @@ function calcLMTDMetrics(rows) {
     .filter(r => r._d)
     .sort((a, b) => a._d - b._d);
 
-  if (!datedRows.length) {
-    return {
-      currentMTD: 0,
-      lmtdSale: 0,
-      growthPct: 0,
-      latestDate: null
-    };
-  }
+  if (!datedRows.length) return { currentMTD: 0, lmtdSale: 0, growthPct: 0, latestDate: null };
 
   const latestDate = datedRows[datedRows.length - 1]._d;
-
   const cy = latestDate.getFullYear();
   const cm = latestDate.getMonth();
   const cd = latestDate.getDate();
@@ -329,14 +273,10 @@ function calcLMTDMetrics(rows) {
     .filter(r => isSameMonthYear(r._d, ly, lm) && r._d.getDate() <= ld)
     .reduce((s, r) => s + r.amount, 0);
 
-  const growthPct = lmtdSale
-    ? ((currentMTD - lmtdSale) / lmtdSale) * 100
-    : 0;
-
   return {
     currentMTD,
     lmtdSale,
-    growthPct,
+    growthPct: lmtdSale ? ((currentMTD - lmtdSale) / lmtdSale) * 100 : 0,
     latestDate
   };
 }
@@ -344,22 +284,37 @@ function calcLMTDMetrics(rows) {
 let _toastT;
 function showToast(msg, dur = 3000) {
   const t = $('toast');
+  if (!t) return;
   t.textContent = msg;
   t.classList.add('show');
   clearTimeout(_toastT);
   _toastT = setTimeout(() => t.classList.remove('show'), dur);
 }
-function showLoader(m) { $('loader').style.display = 'flex'; $('loader-msg').textContent = m || 'Loading…'; }
-function hideLoader()  { $('loader').style.display = 'none'; }
-function showScreen(n) { document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === 'sc-' + n)); }
-function kill(id)      { if (CH[id]) { CH[id].destroy(); delete CH[id]; } }
 
-/* ──────────────────────────────────────────────────────────────
-   AUTH
-────────────────────────────────────────────────────────────── */
+function showLoader(m) {
+  $('loader').style.display = 'flex';
+  $('loader-msg').textContent = m || 'Loading…';
+}
+
+function hideLoader() {
+  $('loader').style.display = 'none';
+}
+
+function showScreen(n) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === 'sc-' + n));
+}
+
+function kill(id) {
+  if (CH[id]) {
+    CH[id].destroy();
+    delete CH[id];
+  }
+}
+
+/* AUTH */
 async function doLogin() {
   const email = $('f-email').value.trim();
-  const pwd   = $('f-pwd').value;
+  const pwd = $('f-pwd').value;
   const errEl = $('login-err');
   errEl.style.display = 'none';
 
@@ -374,7 +329,6 @@ async function doLogin() {
 
   try {
     SB_CLIENT = supabase.createClient(SB_URL, SB_KEY);
-
     const { data, error } = await SB_CLIENT.auth.signInWithPassword({ email, password: pwd });
     if (error) throw error;
 
@@ -410,22 +364,14 @@ async function doLogout() {
 $('f-pwd').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 $('login-btn').addEventListener('click', doLogin);
 
-/* ──────────────────────────────────────────────────────────────
-   FULL FETCH HELPER
-────────────────────────────────────────────────────────────── */
+/* FETCH */
 async function fetchAllRows(tableName, columns, orderColumn = null, ascending = true, pageSize = 1000) {
   let allRows = [];
   let from = 0;
 
   while (true) {
-    let query = SB_CLIENT
-      .from(tableName)
-      .select(columns)
-      .range(from, from + pageSize - 1);
-
-    if (orderColumn) {
-      query = query.order(orderColumn, { ascending });
-    }
+    let query = SB_CLIENT.from(tableName).select(columns).range(from, from + pageSize - 1);
+    if (orderColumn) query = query.order(orderColumn, { ascending });
 
     const { data, error } = await query;
     if (error) throw new Error(`${tableName}: ${error.message}`);
@@ -440,9 +386,7 @@ async function fetchAllRows(tableName, columns, orderColumn = null, ascending = 
   return allRows;
 }
 
-/* ──────────────────────────────────────────────────────────────
-   DATA LOADING
-────────────────────────────────────────────────────────────── */
+/* DATA LOADING */
 async function loadAllData() {
   showLoader('Please wait. Loading data…');
 
@@ -473,25 +417,25 @@ async function loadAllData() {
 
     D.sale = (saleData || []).map(r => ({
       ...r,
-      amount:   +r.amount || 0,
-      profit:   +r.profit || 0,
-      qty:      +r.qty || 0,
-      year_no:  +r.year_no,
-      month_no: +r.month_no,
+      amount: +r.amount || 0,
+      profit: +r.profit || 0,
+      qty: +r.qty || 0,
+      year_no: String(r.year_no || ''),
+      month_no: +r.month_no || 0,
     }));
 
     D.purchase = (purchData || []).map(r => ({
       ...r,
       purchase_value: +r.purchase_value || 0,
-      purchase_qty:   +r.purchase_qty || 0,
-      year_no:        +r.year_no,
-      month_no:       +r.month_no,
+      purchase_qty: +r.purchase_qty || 0,
+      year_no: String(r.year_no || ''),
+      month_no: +r.month_no || 0,
     }));
 
     D.stock = (stockData || []).map(r => ({
       ...r,
       closing_value: +r.closing_value || 0,
-      closing_qty:   +r.closing_qty || 0,
+      closing_qty: +r.closing_qty || 0,
     }));
 
     D.availBrands = [...new Set([
@@ -502,18 +446,19 @@ async function loadAllData() {
 
     D.availYears = [...new Set(D.sale.map(r => r.year_no))]
       .filter(Boolean)
-      .sort((a, b) => a - b);
+      .sort();
 
     D.availBrands.forEach(b => bc(b));
 
     console.log('Sale rows loaded:', D.sale.length);
     console.log('Purchase rows loaded:', D.purchase.length);
     console.log('Stock rows loaded:', D.stock.length);
-    console.log('Years loaded:', D.availYears);
+    console.log('Financial years loaded:', D.availYears);
 
     renderFilters();
     refreshDash();
     updateNavSub();
+
     showToast(`Loaded ${D.sale.length} sale rows, ${D.purchase.length} purchase rows, and ${D.stock.length} stock rows.`);
 
   } catch (e) {
@@ -532,17 +477,16 @@ async function refreshAll() {
   btn.classList.remove('spin-anim');
 }
 
-/* ──────────────────────────────────────────────────────────────
-   FILTER LOGIC
-────────────────────────────────────────────────────────────── */
+/* FILTERS */
 function togglePill(type, value) {
   const s = F[type];
-  if (value === 'all') {
-    s.clear();
-  } else {
+
+  if (value === 'all') s.clear();
+  else {
     if (s.has(value)) s.delete(value);
     else s.add(value);
   }
+
   renderFilters();
   refreshDash();
   updateNavSub();
@@ -551,7 +495,7 @@ function togglePill(type, value) {
 function getSale() {
   let d = D.sale;
   if (F.brands.size) d = d.filter(r => F.brands.has(r.brand_name));
-  if (F.years.size)  d = d.filter(r => F.years.has(r.year_no));
+  if (F.years.size) d = d.filter(r => F.years.has(r.year_no));
   if (F.months.size) d = d.filter(r => F.months.has(r.month_no));
   return d;
 }
@@ -559,7 +503,7 @@ function getSale() {
 function getPurch() {
   let d = D.purchase;
   if (F.brands.size) d = d.filter(r => F.brands.has(r.brand_name));
-  if (F.years.size)  d = d.filter(r => F.years.has(r.year_no));
+  if (F.years.size) d = d.filter(r => F.years.has(r.year_no));
   if (F.months.size) d = d.filter(r => F.months.has(r.month_no));
   return d;
 }
@@ -570,9 +514,6 @@ function getStock() {
   return d;
 }
 
-/* ──────────────────────────────────────────────────────────────
-   FILTER RENDER
-────────────────────────────────────────────────────────────── */
 function renderFilters() {
   renderBrandPills();
   renderYearPills();
@@ -582,14 +523,17 @@ function renderFilters() {
 function renderBrandPills() {
   const isAll = F.brands.size === 0;
   let h = `<div class="pill${isAll ? ' all-on' : ''}" onclick="togglePill('brands','all')">All</div>`;
+
   D.availBrands.forEach(b => {
-    const on  = F.brands.has(b);
+    const on = F.brands.has(b);
     const col = bc(b);
     const style = on
       ? `background:${col};color:#000;border-color:${col}`
       : `color:${col};border-color:${col}44`;
+
     h += `<div class="pill" style="${style}" onclick="togglePill('brands','${CSS.escape(b)}')">${b}</div>`;
   });
+
   $('pills-brand').innerHTML = h;
 }
 
@@ -608,13 +552,13 @@ function renderYearPills() {
     let h = `<div class="pill${isAll ? ' all-on' : ''}" onclick="togglePill('years','all')">All</div>`;
     years.forEach(yr => {
       const on = F.years.has(yr);
-      h += `<div class="pill${on ? ' yr-on' : ''}" onclick="togglePill('years',${yr})">${yr}</div>`;
+      h += `<div class="pill${on ? ' yr-on' : ''}" onclick="togglePill('years','${yr}')">${yr}</div>`;
     });
     wrap.innerHTML = h;
     return;
   }
 
-  const selectedYears = [...F.years].sort((a,b)=>a-b);
+  const selectedYears = [...F.years].sort();
   let label = 'All';
   if (selectedYears.length === 1) label = selectedYears[0];
   else if (selectedYears.length > 1) label = `${selectedYears.length} Years`;
@@ -623,7 +567,7 @@ function renderYearPills() {
   years.forEach(yr => {
     const on = F.years.has(yr);
     opts += `
-      <div class="yd-opt ${on ? 'on' : ''}" onclick="togglePill('years',${yr})">
+      <div class="yd-opt ${on ? 'on' : ''}" onclick="togglePill('years','${yr}')">
         <span>${yr}</span>
         <span>${on ? '✓' : ''}</span>
       </div>
@@ -643,24 +587,24 @@ function renderYearPills() {
 function renderMonthPills() {
   const isAll = F.months.size === 0;
   let h = `<div class="pill${isAll ? ' all-on' : ''}" onclick="togglePill('months','all')">All</div>`;
+
   MONTHS_S.forEach((mn, i) => {
     const mo = i + 1;
     const on = F.months.has(mo);
     h += `<div class="pill${on ? ' yr-on' : ''}" onclick="togglePill('months',${mo})">${mn}</div>`;
   });
+
   $('pills-month').innerHTML = h;
 }
 
 function updateNavSub() {
   const br = F.brands.size ? [...F.brands].join(', ') : 'All Brands';
-  const yr = F.years.size  ? [...F.years].sort((a,b)=>a-b).join(', ') : 'All Years';
+  const yr = F.years.size ? [...F.years].sort().join(', ') : 'All Years';
   const mo = F.months.size ? [...F.months].sort((a,b)=>a-b).map(m => MONTHS_S[m-1]).join(', ') : 'All Months';
   $('nav-sub').textContent = `Sales & Purchase · ${br} · ${yr} · ${mo}`;
 }
 
-/* ──────────────────────────────────────────────────────────────
-   CHART DEFAULTS
-────────────────────────────────────────────────────────────── */
+/* CHART OPTIONS */
 function cOpts(extra = {}) {
   return {
     responsive: true,
@@ -688,9 +632,7 @@ function cOpts(extra = {}) {
   };
 }
 
-/* ──────────────────────────────────────────────────────────────
-   PAGE ROUTING
-────────────────────────────────────────────────────────────── */
+/* PAGE ROUTING */
 function showPage(pg) {
   document.querySelectorAll('.ptab').forEach(t => t.classList.toggle('on', t.dataset.pg === pg));
   document.querySelectorAll('.page').forEach(p => p.classList.toggle('on', p.id === 'pg-' + pg));
@@ -703,24 +645,21 @@ function refreshDash() {
   showPage(activePg);
 }
 
-/* ──────────────────────────────────────────────────────────────
-   PAGE: OVERVIEW
-────────────────────────────────────────────────────────────── */
+/* OVERVIEW */
 function renderOverview() {
-  const d  = getSale();
-  const p  = getPurch();
+  const d = getSale();
+  const p = getPurch();
 
-  const totSale   = d.reduce((s, r) => s + r.amount, 0);
+  const totSale = d.reduce((s, r) => s + r.amount, 0);
   const totProfit = d.reduce((s, r) => s + r.profit, 0);
-  const totPurch  = p.reduce((s, r) => s + r.purchase_value, 0);
-  const margin    = totSale ? totProfit / totSale * 100 : 0;
-  const brands    = new Set(d.map(r => r.brand_name)).size;
-  const items     = new Set(d.map(r => r.description_of_goods)).size;
+  const totPurch = p.reduce((s, r) => s + r.purchase_value, 0);
+  const margin = totSale ? totProfit / totSale * 100 : 0;
+  const brands = new Set(d.map(r => r.brand_name)).size;
+  const items = new Set(d.map(r => r.description_of_goods)).size;
 
   const lmtd = calcLMTDMetrics(d);
-  const growthText = lmtd.growthPct >= 0
-    ? `+${lmtd.growthPct.toFixed(1)}%`
-    : `${lmtd.growthPct.toFixed(1)}%`;
+  const growthText = lmtd.growthPct >= 0 ? `+${lmtd.growthPct.toFixed(1)}%` : `${lmtd.growthPct.toFixed(1)}%`;
+  const lmtdDate = lmtd.latestDate ? sameDateLastMonth(lmtd.latestDate) : null;
 
   const growthSub = lmtd.lmtdSale > 0
     ? `MTD ${fi(lmtd.currentMTD)} vs LMTD ${fi(lmtd.lmtdSale)}`
@@ -730,18 +669,8 @@ function renderOverview() {
     kpiCard('Total Sale', fi(totSale), d.length + ' transactions', '#f5a623') +
     kpiCard('Profit', fi(totProfit), margin.toFixed(1) + '% margin', totProfit >= 0 ? '#22c55e' : '#ef4444') +
     kpiCard('Total Purchase', fi(totPurch), p.length + ' purchase rows', '#3b82f6') +
-    kpiCard(
-      'LMTD Sale',
-      fi(lmtd.lmtdSale),
-      lmtd.latestDate ? `Last month till ${sameDateLastMonth(lmtd.latestDate).toLocaleDateString('en-GB')}` : '—',
-      '#06b6d4'
-    ) +
-    kpiCard(
-      'Growth / De-Growth',
-      growthText,
-      growthSub,
-      lmtd.growthPct >= 0 ? '#22c55e' : '#ef4444'
-    ) +
+    kpiCard('LMTD Sale', fi(lmtd.lmtdSale), lmtdDate ? `Last month till ${lmtdDate.toLocaleDateString('en-GB')}` : '—', '#06b6d4') +
+    kpiCard('Growth / De-Growth', growthText, growthSub, lmtd.growthPct >= 0 ? '#22c55e' : '#ef4444') +
     kpiCard('Margin %', margin.toFixed(1) + '%', margin >= 20 ? 'Healthy' : margin >= 10 ? 'Moderate' : 'Low', '#a855f7') +
     kpiCard('Brands', brands, 'active brands', '#14b8a6') +
     kpiCard('Items', items, 'unique items', '#f97316');
@@ -756,7 +685,7 @@ function renderOverview() {
   const brMap = {};
   d.forEach(r => {
     brMap[r.brand_name] = brMap[r.brand_name] || { s: 0, gp: 0 };
-    brMap[r.brand_name].s  += r.amount;
+    brMap[r.brand_name].s += r.amount;
     brMap[r.brand_name].gp += r.profit;
   });
 
@@ -778,8 +707,8 @@ function renderOverview() {
   const maxS = brs[0] ? brs[0][1].s : 1;
   $('ov-bcb').innerHTML = brs.map(([br, v]) => {
     const col = bc(br);
-    const mg  = v.s ? v.gp / v.s * 100 : 0;
-    const sh  = totSale ? v.s / totSale * 100 : 0;
+    const mg = v.s ? v.gp / v.s * 100 : 0;
+    const sh = totSale ? v.s / totSale * 100 : 0;
     return `<div class="bcb">
       <div class="bcb-l">${bbrand(br)}</div>
       <div class="bcb-t"><div class="bcb-f" style="width:${(v.s/maxS*100).toFixed(0)}%;background:${col}"></div></div>
@@ -794,8 +723,8 @@ function renderTrendChart(d) {
   const ctx = $('c-trend').getContext('2d');
 
   const activeMos = F.months.size > 0 ? [...F.months].sort((a,b)=>a-b) : [1,2,3,4,5,6,7,8,9,10,11,12];
-  const xLabels   = activeMos.map(m => MONTHS_S[m - 1]);
-  const activeYrs = F.years.size > 0 ? [...F.years].sort((a,b)=>a-b) : D.availYears;
+  const xLabels = activeMos.map(m => MONTHS_S[m - 1]);
+  const activeYrs = F.years.size > 0 ? [...F.years].sort() : D.availYears;
 
   let datasets;
   let subtitle;
@@ -804,55 +733,52 @@ function renderTrendChart(d) {
 
   if (activeYrs.length === 1) {
     const yr = activeYrs[0];
-    const saleData   = activeMos.map(mo => baseD.filter(r => r.year_no === yr && r.month_no === mo).reduce((s,r) => s + r.amount, 0));
+    const saleData = activeMos.map(mo => baseD.filter(r => r.year_no === yr && r.month_no === mo).reduce((s,r) => s + r.amount, 0));
     const profitData = activeMos.map(mo => baseD.filter(r => r.year_no === yr && r.month_no === mo).reduce((s,r) => s + r.profit, 0));
 
     datasets = [
       { label: `${yr} Sale ₹`, data: saleData, borderColor: '#22c55e', backgroundColor: '#22c55e0e', tension: .4, fill: true, pointRadius: 4, borderWidth: 2 },
       { label: `${yr} Profit ₹`, data: profitData, borderColor: '#f5a623', backgroundColor: '#f5a6230e', tension: .4, fill: true, pointRadius: 4, borderWidth: 2 },
     ];
-    subtitle = `${yr} · ${activeMos.length === 12 ? 'Full year' : activeMos.length + ' selected months'}`;
+    subtitle = `${yr} · ${activeMos.length === 12 ? 'Full financial year' : activeMos.length + ' selected months'}`;
   } else {
     datasets = activeYrs.map((yr, i) => {
-      const c    = YR_COLS[i % YR_COLS.length];
+      const c = YR_COLS[i % YR_COLS.length];
       const data = activeMos.map(mo => baseD.filter(r => r.year_no === yr && r.month_no === mo).reduce((s,r) => s + r.amount, 0));
       return { label: String(yr), data, borderColor: c, backgroundColor: c + '10', tension: .4, fill: false, pointRadius: 3, borderWidth: 2.5 };
     });
-    subtitle = `${activeYrs.length} years · ${activeMos.length} months · Sales comparison`;
+    subtitle = `${activeYrs.length} financial years · ${activeMos.length} months · Sales comparison`;
   }
 
   CH.trend = new Chart(ctx, { type: 'line', data: { labels: xLabels, datasets }, options: cOpts() });
   $('trend-sub').textContent = subtitle;
 }
 
-/* ──────────────────────────────────────────────────────────────
-   PAGE: BRANDS
-────────────────────────────────────────────────────────────── */
+/* BRANDS */
 function renderBrands() {
   const d = getSale();
   const p = getPurch();
   const st = getStock();
 
-  const brSale   = {};
+  const brSale = {};
   const brProfit = {};
-  const brQty    = {};
+  const brQty = {};
+  const brPurch = {};
+  const brStock = {};
 
   d.forEach(r => {
-    brSale[r.brand_name]   = (brSale[r.brand_name] || 0) + r.amount;
+    brSale[r.brand_name] = (brSale[r.brand_name] || 0) + r.amount;
     brProfit[r.brand_name] = (brProfit[r.brand_name] || 0) + r.profit;
-    brQty[r.brand_name]    = (brQty[r.brand_name] || 0) + r.qty;
+    brQty[r.brand_name] = (brQty[r.brand_name] || 0) + r.qty;
   });
 
-  const brPurch = {};
   p.forEach(r => { brPurch[r.brand_name] = (brPurch[r.brand_name] || 0) + r.purchase_value; });
-
-  const brStock = {};
   st.forEach(r => { brStock[r.brand_name] = (brStock[r.brand_name] || 0) + r.closing_value; });
 
   const allBrands = [...new Set([...Object.keys(brSale), ...Object.keys(brPurch), ...Object.keys(brStock)])].sort();
-  const totSale   = Object.values(brSale).reduce((s, v) => s + v, 0);
+  const totSale = Object.values(brSale).reduce((s, v) => s + v, 0);
   const totProfit = Object.values(brProfit).reduce((s, v) => s + v, 0);
-  const topBr     = [...allBrands].sort((a,b) => (brSale[b]||0) - (brSale[a]||0))[0];
+  const topBr = [...allBrands].sort((a,b) => (brSale[b]||0) - (brSale[a]||0))[0];
 
   $('br-kpis').innerHTML =
     kpiCard('Total Sale', fi(totSale), allBrands.length + ' brands', '#f5a623') +
@@ -923,9 +849,7 @@ function renderBrands() {
   }).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--dim);padding:20px">No data</td></tr>';
 }
 
-/* ──────────────────────────────────────────────────────────────
-   PAGE: ITEMS
-────────────────────────────────────────────────────────────── */
+/* ITEMS */
 function renderItems(mode) {
   if (mode) itMode = mode;
   const d = getSale();
@@ -934,9 +858,9 @@ function renderItems(mode) {
   d.forEach(r => {
     const k = r.description_of_goods || 'Unknown';
     itemMap[k] = itemMap[k] || { sale: 0, profit: 0, qty: 0, brand: r.brand_name };
-    itemMap[k].sale   += r.amount;
+    itemMap[k].sale += r.amount;
     itemMap[k].profit += r.profit;
-    itemMap[k].qty    += r.qty;
+    itemMap[k].qty += r.qty;
   });
 
   const items = Object.entries(itemMap).map(([name, v]) => ({ name, ...v, margin: v.sale ? v.profit/v.sale*100 : 0 }));
@@ -986,9 +910,7 @@ function renderItems(mode) {
   ).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--dim);padding:20px">No data</td></tr>';
 }
 
-/* ──────────────────────────────────────────────────────────────
-   PAGE: CUSTOMERS
-────────────────────────────────────────────────────────────── */
+/* CUSTOMERS */
 function renderCustomers(mode) {
   if (mode) cuMode = mode;
   const d = getSale();
@@ -997,9 +919,9 @@ function renderCustomers(mode) {
   d.forEach(r => {
     const k = r.party_name || 'Unknown';
     custMap[k] = custMap[k] || { sale: 0, profit: 0, qty: 0 };
-    custMap[k].sale   += r.amount;
+    custMap[k].sale += r.amount;
     custMap[k].profit += r.profit;
-    custMap[k].qty    += r.qty;
+    custMap[k].qty += r.qty;
   });
 
   const custs = Object.entries(custMap).map(([party, v]) => ({ party, ...v }));
@@ -1054,9 +976,7 @@ function renderCustomers(mode) {
   ).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--dim);padding:20px">No data</td></tr>';
 }
 
-/* ──────────────────────────────────────────────────────────────
-   PAGE: STOCK
-────────────────────────────────────────────────────────────── */
+/* STOCK */
 function renderStock() {
   const st = getStock();
 
@@ -1110,9 +1030,7 @@ function renderStock() {
   }).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--dim);padding:20px">No stock data</td></tr>';
 }
 
-/* ──────────────────────────────────────────────────────────────
-   PAGE: FORECAST
-────────────────────────────────────────────────────────────── */
+/* FORECAST */
 function wLinReg(pts) {
   if (!pts.length) return { m: 0, b: 0 };
   if (pts.length === 1) return { m: 0, b: pts[0].y };
@@ -1138,33 +1056,36 @@ function renderForecast() {
   const baseD = F.brands.size ? D.sale.filter(r => F.brands.has(r.brand_name)) : D.sale;
   const baseP = F.brands.size ? D.purchase.filter(r => F.brands.has(r.brand_name)) : D.purchase;
 
-  const moSale   = {};
+  const moSale = {};
   const moProfit = {};
-  const moPurch  = {};
+  const moPurch = {};
 
   baseD.forEach(r => {
-    const k = `${r.year_no}-${String(r.month_no).padStart(2,'0')}`;
-    moSale[k]   = (moSale[k] || 0) + r.amount;
+    const k = makeMonthKey(r.year_no, r.month_no);
+    moSale[k] = (moSale[k] || 0) + r.amount;
     moProfit[k] = (moProfit[k] || 0) + r.profit;
   });
 
   baseP.forEach(r => {
-    const k = `${r.year_no}-${String(r.month_no).padStart(2,'0')}`;
+    const k = makeMonthKey(r.year_no, r.month_no);
     moPurch[k] = (moPurch[k] || 0) + r.purchase_value;
   });
 
-  const allKeys  = [...new Set([...Object.keys(moSale), ...Object.keys(moPurch)])].sort();
-  const n        = allKeys.length;
-  const saleArr  = allKeys.map(k => moSale[k] || 0);
-  const profArr  = allKeys.map(k => moProfit[k] || 0);
+  const allKeys = sortMonthKeys([...new Set([...Object.keys(moSale), ...Object.keys(moPurch)])]);
+  const n = allKeys.length;
+  const saleArr = allKeys.map(k => moSale[k] || 0);
+  const profArr = allKeys.map(k => moProfit[k] || 0);
   const purchArr = allKeys.map(k => moPurch[k] || 0);
-  const labels   = allKeys.map(k => { const [y,m]=k.split('-'); return MONTHS_S[+m-1]+'-'+y; });
+  const labels = allKeys.map(k => {
+    const x = parseMonthKey(k);
+    return `${MONTHS_S[x.mo - 1]}-${x.fy}`;
+  });
 
   const q = n >= 8 ? 'high' : n >= 4 ? 'med' : 'low';
-  $('fc-quality').className = 'alert ' + (q==='high'?'al-g':q==='med'?'al-w':'al-r');
+  $('fc-quality').className = 'alert ' + (q === 'high' ? 'al-g' : q === 'med' ? 'al-w' : 'al-r');
   $('fc-quality').textContent =
-    q==='high' ? `✅ ${n} months of history — high forecast accuracy`
-    : q==='med' ? `⚠ ${n} months — medium accuracy. More data improves forecast.`
+    q === 'high' ? `✅ ${n} months of history — high forecast accuracy`
+    : q === 'med' ? `⚠ ${n} months — medium accuracy. More data improves forecast.`
     : `❌ Only ${n} months — low accuracy. At least 4 months are recommended.`;
 
   $('fc-cs').textContent = `Weighted regression · ${n} months of history`;
@@ -1172,29 +1093,40 @@ function renderForecast() {
   const { m: sm, b: sb } = wLinReg(saleArr.map((y,x) => ({x,y})));
   const { m: pm, b: pb } = wLinReg(profArr.map((y,x) => ({x,y})));
 
-  const fcSale = [], fcProfit = [], fcLabels = [];
-  let [fy, fm] = allKeys.length ? allKeys[allKeys.length-1].split('-').map(Number) : [2025, 1];
+  const fcSale = [];
+  const fcProfit = [];
+  const fcLabels = [];
+
+  let last = allKeys.length ? parseMonthKey(allKeys[allKeys.length - 1]) : { fy: '2025-26', mo: 1 };
+  let fy = last.fy;
+  let fm = last.mo;
 
   for (let i = 1; i <= 3; i++) {
     fm++;
-    if (fm > 12) { fm = 1; fy++; }
-    fcLabels.push(MONTHS_S[fm-1] + '-' + fy);
-    fcSale.push(Math.max(0, sm*(n+i-1)+sb));
-    fcProfit.push(pm*(n+i-1)+pb);
+    if (fm > 12) {
+      fm = 1;
+      const startYear = Number(String(fy).slice(0, 4)) + 1;
+      fy = `${startYear}-${String(startYear + 1).slice(-2)}`;
+    }
+
+    fcLabels.push(`${MONTHS_S[fm - 1]}-${fy}`);
+    fcSale.push(Math.max(0, sm * (n + i - 1) + sb));
+    fcProfit.push(pm * (n + i - 1) + pb);
   }
 
-  const allLab    = [...labels, ...fcLabels];
-  const actSale   = [...saleArr, ...Array(3).fill(null)];
+  const allLab = [...labels, ...fcLabels];
+  const actSale = [...saleArr, ...Array(3).fill(null)];
   const actProfit = [...profArr, ...Array(3).fill(null)];
-  const fcastS    = [...Array(Math.max(n-1,0)).fill(null), saleArr[n-1]||0, ...fcSale];
-  const fcastP    = [...Array(Math.max(n-1,0)).fill(null), profArr[n-1]||0, ...fcProfit];
+  const fcastS = [...Array(Math.max(n - 1, 0)).fill(null), saleArr[n - 1] || 0, ...fcSale];
+  const fcastP = [...Array(Math.max(n - 1, 0)).fill(null), profArr[n - 1] || 0, ...fcProfit];
 
   const fc3mo = fcSale.reduce((s,v)=>s+v,0);
+
   $('fc-kpis').innerHTML =
     kpiCard('Months Used', n, 'in regression model', '#f5a623') +
     kpiCard('Forecast (3 Months)', fi(fc3mo), 'projected sale', '#22c55e') +
-    kpiCard('Monthly Trend', sm>=0?'Growing':'Declining', (sm>=0?'+':'')+fi(sm)+'/month', sm>=0?'#22c55e':'#ef4444') +
-    kpiCard('Accuracy', q==='high'?'High':q==='med'?'Medium':'Low', n+' months', '#a855f7');
+    kpiCard('Monthly Trend', sm >= 0 ? 'Growing' : 'Declining', (sm >= 0 ? '+' : '') + fi(sm) + '/month', sm >= 0 ? '#22c55e' : '#ef4444') +
+    kpiCard('Accuracy', q === 'high' ? 'High' : q === 'med' ? 'Medium' : 'Low', n + ' months', '#a855f7');
 
   kill('fcline');
   kill('fcps');
@@ -1213,7 +1145,7 @@ function renderForecast() {
 
   CH.fcps = new Chart($('c-fc-ps').getContext('2d'), {
     type: 'line',
-    data: { labels: labels, datasets: [
+    data: { labels, datasets: [
       { label: 'Sale ₹', data: saleArr, borderColor:'#22c55e', backgroundColor:'#22c55e0d', tension:.4, fill:true, pointRadius:3, borderWidth:2 },
       { label: 'Purchase ₹', data: purchArr, borderColor:'#3b82f6', backgroundColor:'#3b82f60d', tension:.4, fill:true, pointRadius:3, borderWidth:2 },
     ]},
@@ -1223,8 +1155,8 @@ function renderForecast() {
   const brBrands = [...new Set(baseD.map(r => r.brand_name))];
   const brFcData = brBrands.map(br => {
     const mhist = allKeys.map(k => {
-      const [y,m] = k.split('-').map(Number);
-      return baseD.filter(r => r.brand_name===br && r.year_no===y && r.month_no===m).reduce((s,r)=>s+r.amount,0);
+      const x = parseMonthKey(k);
+      return baseD.filter(r => r.brand_name === br && r.year_no === x.fy && r.month_no === x.mo).reduce((s,r)=>s+r.amount,0);
     });
     const { m: bm, b: bb } = wLinReg(mhist.map((y,x)=>({x,y})));
     return Math.max(0, bm * mhist.length + bb);
@@ -1239,7 +1171,7 @@ function renderForecast() {
   const itemMo = {};
   baseD.forEach(r => {
     const k = `${r.description_of_goods}`;
-    const mk = `${r.year_no}-${String(r.month_no).padStart(2,'0')}`;
+    const mk = makeMonthKey(r.year_no, r.month_no);
     if (!itemMo[k]) itemMo[k] = { brand: r.brand_name, monthly: {} };
     itemMo[k].monthly[mk] = (itemMo[k].monthly[mk] || 0) + r.amount;
   });
@@ -1265,11 +1197,8 @@ function renderForecast() {
   ).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--dim);padding:20px">No data</td></tr>';
 }
 
-/* ──────────────────────────────────────────────────────────────
-   INIT
-────────────────────────────────────────────────────────────── */
+/* INIT */
 (function init() {
-
   document.querySelectorAll('.ptab').forEach(t =>
     t.addEventListener('click', () => showPage(t.dataset.pg))
   );
@@ -1288,13 +1217,11 @@ function renderForecast() {
     const menu = $('year-dd-menu');
     if (!menu) return;
     const dd = document.querySelector('.year-dd');
-    if (dd && !dd.contains(e.target)) {
-      menu.classList.remove('show');
-    }
+    if (dd && !dd.contains(e.target)) menu.classList.remove('show');
   });
 
   (async () => {
-    if (SB_URL === 'YOUR_SUPABASE_URL') return;
+    if (!SB_URL || !SB_KEY || SB_KEY === 'PASTE_YOUR_PUBLISHABLE_KEY_HERE') return;
 
     try {
       SB_CLIENT = supabase.createClient(SB_URL, SB_KEY);
@@ -1308,5 +1235,4 @@ function renderForecast() {
       console.warn('Session check failed:', e.message);
     }
   })();
-
 })();
